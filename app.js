@@ -155,10 +155,22 @@ $('scene-info').addEventListener('click', () => {
   $('detail').showModal();
 });
 $('save-menu').addEventListener('click', () => {
-  $('dialog-content').innerHTML = '<div class="eyebrow">KEEP YOUR LITTLE WORLD</div><h2>留住这方小世界</h2><p>进度每 5 秒自动保存在当前浏览器。换电脑、清理浏览器数据前，可以导出一份存档。</p><button class="soft-button" id="export">↓ 导出存档</button><button class="soft-button" id="import">↑ 导入存档</button><p style="font-size:11px">导入会替换当前进度。需要时请先导出备份。</p>';
+  $('dialog-content').innerHTML = '<div class="eyebrow">KEEP YOUR LITTLE WORLD</div><h2>留住这方小世界</h2><p>进度每 5 秒自动保存在当前浏览器。换电脑、清理浏览器数据前，可以导出一份存档。</p><button class="soft-button" id="export">↓ 导出存档</button><button class="soft-button" id="import">↑ 导入存档</button><button class="soft-button" id="restart">↻ 重新开始</button><p style="font-size:11px">导入或重新开始会替换当前进度。需要时请先导出备份。</p>';
   $('detail').showModal();
   $('export').onclick = () => { sync(); save(); const url = URL.createObjectURL(new Blob([JSON.stringify(state)], {type:'application/json'})); const a = document.createElement('a'); a.href = url; a.download = '浮生-生命存档.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); toast('已导出当前生命存档。'); };
   $('import').onclick = () => $('import-file').click();
+  $('restart').onclick = () => {
+    $('dialog-content').innerHTML='<div class="eyebrow">A NEW BEGINNING</div><h2>重新开始这段生命旅程？</h2><p>这会清空当前图鉴、能量、属性、技能与演化路线，从初始细胞重新开始。演化速度恢复为 1×。</p><p>如需保留这段旅程，请取消并先导出存档。</p><button class="soft-button" id="cancel-restart">取消，保留进度</button><button class="soft-button" id="confirm-restart">确认重新开始</button>';
+    $('cancel-restart').onclick=()=>$('detail').close();
+    $('confirm-restart').onclick=()=>{
+      state=L.create();selected='cell';filter='all';chapter='all';sessionSeconds=0;eventKey='';lastProgress=1;
+      lastTick=Date.now();lastSave=lastTick;sceneClock=0;lastFrame=0;
+      $('chapter').value='all';
+      document.querySelectorAll('[data-filter]').forEach(b=>{const on=b.dataset.filter==='all';b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
+      save();renderList();render();$('species-list').scrollTop=0;$('detail').close();toast('新的旅程开始了，从一颗细胞重新生长。');
+    };
+    $('cancel-restart').focus();
+  };
 });
 $('import-file').addEventListener('change', async e => {
   const file = e.target.files[0]; if (!file) return;
