@@ -3,9 +3,9 @@ const $ = id => document.getElementById(id);
 const L = window.Life;
 const Art = window.LifeArt;
 window.addEventListener('life-art-ready',e=>document.querySelectorAll(`[data-art-group="${e.detail}"]`).forEach(el=>el.classList.add('ready')));
-const KEY = 'fusheng-life-v1';
+const KEY = 'fusheng-life-v3';
 let state = L.create(), selected = 'cell', filter = 'all', chapter = 'all', slow = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let toastTimer, saveWarning = false, lastCount = 1, sessionSeconds = 0, eventKey = '';
+let toastTimer, saveWarning = false, sessionSeconds = 0, eventKey = '', lastProgress = 1;
 const escapeHtml = text => String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const format = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'm' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Math.floor(n).toLocaleString('en-US');
 const duration = n => n >= 60 ? Math.ceil(n / 60) + ' 分钟' : Math.ceil(n) + ' 秒';
@@ -18,12 +18,13 @@ function save() {
 }
 function restore() {
   try {
-    const raw = localStorage.getItem(KEY); if (!raw) return;
+    const raw = localStorage.getItem(KEY)??localStorage.getItem('fusheng-life-v1'); if (!raw) return;
     const restored = JSON.parse(raw); if (!L.valid(restored)) { toast('原存档无法读取，已开始新的生命旅程。'); return; }
     state = L.migrate(restored);
     const away = Math.min(28800, Math.max(0, (Date.now() - state.savedAt) / 1000));
     const before = state.total; L.advance(state, away);
     if (away >= 60) toast(state.paused ? '欢迎回来，生态缸仍保持暂停。' : `欢迎回来！离线生长 ${duration(away)}，获得 ${format(state.total - before)} 能量。`);
+    if(restored.version<3)toast('旧图鉴、能量、属性和技能已保留；从本次回来开启新的单线演化旅程。');
     selected = L.latest(state).id;
   } catch { toast('原存档无法读取，已开始新的生命旅程。'); }
 }
@@ -55,8 +56,8 @@ function renderList() {
 }
 function showDetail(id) {
   const s = L.species.find(x => x.id === id); selected = id; renderList();
-  const open = L.has(state,s.id), trait = L.affinity(s);
-  $('dialog-content').innerHTML = `<div class="dialog-visual">${icon(s)}</div><div class="eyebrow">${open ? 'DISCOVERED · ' + s.kind : 'WAITING TO BE DISCOVERED'}</div><h2>${s.name}</h2><p style="color:${s.color}">${s.note}</p><p>${open ? s.detail : '它还在未来的路线上。提高'+trait.name+'，会提高它在所属章节中的发现优先级。已发现的生命不受后续加点影响。'}</p><p class="trait-label">演化倾向：${trait.name} · ${s.kind}</p><div class="eyebrow">${s.latin.toUpperCase()}</div>`;
+  const open = L.has(state,s.id), trait = L.affinity(s), gated=s.fantasy&&!L.fantasyReady(state);
+  $('dialog-content').innerHTML = `<div class="dialog-visual">${icon(s)}</div><div class="eyebrow">${s.fantasy?'ORIGINAL FANTASY · ':open?'DISCOVERED · ':''}${s.kind}</div><h2>${s.name}</h2><p style="color:${s.color}">${s.note}</p><p>${gated?'走完本轮真实阶段，即进入所属主线的幻想演化，无需集齐其他路线。'+s.detail:open?s.detail:s.detail+' 本轮只发展一条路线；它可能属于其他分支。加点与事件决定尚未锁定的阶段，不能改写已锁定分支。'}</p><p class="trait-label">${s.fantasy?'原创幻想 · ':''}演化倾向：${trait.name} · ${s.kind}</p><div class="eyebrow">${s.latin.toUpperCase()}</div>`;
   $('detail').showModal();
 }
 function render() {
@@ -64,16 +65,20 @@ function render() {
   $('watch').textContent = clock(sessionSeconds);
   $('energy').innerHTML = format(state.energy) + '<span> EL</span>';
   $('rate').textContent = state.paused ? '0.0' : L.rate(state).toFixed(1);
-  $('collection-count').textContent = String(count).padStart(3, '0') + ' / 200';
+  $('collection-count').textContent = String(count).padStart(3, '0') + ' / '+L.species.length;
+  const step=L.progress(state),fantasyUnlocked=L.fantasyReady(state),path=L.route(state);
+  $('phase-status').textContent=`本轮 ${step} / ${L.journeySize} 步 · ${fantasyUnlocked?'幻想演化':'真实生命阶段'}。`+(path.preview?`下次分化预测：${L.species.find(s=>s.id===path.preview.ids[0]).name}（分化前可改变）`:`最终形态：${L.latest(state).name}`);
+  document.body.classList.toggle('fantasy-world',fantasyUnlocked);
   $('era-index').textContent = `CHAPTER ${String(current.group+1).padStart(2, '0')} · ${current.latin.toUpperCase()}`;
-  $('era-name').textContent = current.era; $('era-note').textContent = current.note;
-  $('world-time').textContent = `演化时间 · ${format(state.age * 160)} 万年`;
+  $('world').setAttribute('aria-label',`当前生物：${current.name}；生态缸仅展示此形态。`);
+  $('era-name').textContent = current.name; $('era-note').textContent = current.note;
+  $('world-time').textContent = current.fantasy?'幻想纪元 · 原创设定':`历史进程 · ${state.historyIndex?L.history[state.historyIndex-1].date:'微观生命序章'}`;
   $('next-title').textContent = next ? '下一次相遇' : '生命仍在继续';
-  $('next-eta').textContent = next ? (state.paused ? '等待恢复' : '约 '+duration(Math.max(0,L.threshold(state)-state.evolution)/L.evolutionRate(state)) + '后') : '全部发现';
-  $('next-name').innerHTML = (next ? next.name : '万物共生') + '<span>✧</span>';
-  const previous = L.species[count-1].at;
+  $('next-eta').textContent = next ? (state.paused ? '等待恢复' : '约 '+duration(Math.max(0,L.threshold(state)-state.evolution)/L.evolutionRate(state)) + '后') : '本轮演化完成';
+  $('next-name').innerHTML = (next ? next.name : current.name) + '<span>✧</span>';
+  const previous = state.lineage.origin+L.journeyAt(step-1);
   $('next-progress').style.width = (next ? Math.min(100,Math.max(0,(state.evolution-previous)/(L.threshold(state)-previous)*100)) : 100) + '%';
-  $('next-note').textContent = next ? `${String(count+1).padStart(3,'0')} / 200 · ${next.era}，自动发现。` : '200 种生命已全部发现，故事还会继续。';
+  $('next-note').textContent = next ? `本轮第 ${step+1} / ${L.journeySize} 步 · ${next.fantasy?'原创幻想 · ':''}${next.era}` : `本轮终点：${current.name}。此后持续获取生命能量，不会补走其他路线。`;
   $('upgrade-level').textContent = 'Lv. ' + state.level;
   $('upgrade-note').textContent = state.level < 50 ? `下一次升级需要 ${format(L.cost(state))} 能量，自动完成。` : '生态已达最高等级，继续自在生长。';
   $('habitat-state').textContent = state.paused ? '观察暂停' : '生态稳定';
@@ -84,32 +89,37 @@ function render() {
   $('speed').value=String(state.speed??1);
   $('journal').innerHTML = state.found.slice(-3).reverse().map(f => { const s=L.species.find(x=>x.id===f.id);return `<li>${f.age ? '发现了'+s.name : '第一颗细胞诞生了'}<small>${clock(f.age)} · ${s.era}</small></li>`; }).join('');
   renderDecisions();
-  if (count !== lastCount) { selected = current.id; renderList(); toast(`新的相遇：${current.name}，已加入你的生态缸。`); lastCount = count; }
+  if (step !== lastProgress) { selected = current.id; renderList(); toast(`演化第 ${step} 步：${current.name}。`); lastProgress = step; }
 }
 function renderDecisions() {
   const path = L.route(state);
-  $('route-name').textContent = path.name;
+  $('route-name').textContent = (path.locked?'已锁定 · ':'主线预测 · ')+path.name;
   $('route-note').textContent = path.note;
-  $('route-path').innerHTML = path.groups.map(i => { const found=state.found.filter(f=>L.species.find(s=>s.id===f.id).group===i).length;return `<button data-chapter="${i}" class="route-node ${found===20?'complete':found?'started':''}"><span>${L.chapters[i].name}</span><small>${found}/20</small></button>`; }).join('<span class="route-arrow">›</span>');
+  let passed=0;
+  $('route-path').innerHTML=path.groups.map((group,i)=>{
+    const stage=path.stages[i],size=i===0?12:i<=4?6:i===5?4:1,done=Math.min(size,Math.max(0,L.progress(state)-passed));passed+=size;
+    return `<button data-chapter="${group}" title="${escapeHtml(stage?stage.reason:'未锁定：加点与事件可以改变具体形态')}" class="route-node ${done===size?'complete':done?'started':''}"><span>${L.chapters[group].name}</span><small>${done}/${size} · ${stage?'已锁定':'预测'}</small></button>`;
+  }).join('<span class="route-arrow">›</span>');
   $('point-count').textContent = `可用 ${state.points} 点`;
   $('decision-hint').textContent=state.pending?'· 事件待选择':state.points?`· ${state.points} 点可分配`:'';
   for(const a of L.attributes){$('stat-'+a.key).textContent=state.attrs[a.key];document.querySelector(`[data-stat="${a.key}"]`).disabled=state.points<1;}
   $('skill-production').textContent=`当前产能 ${state.paused?'0.0':L.rate(state).toFixed(1)} / 秒`;
   for(const skill of L.skills){
     const level=L.skillLevel(state,skill.key),button=$('learn-'+skill.key),price=L.skillCost(state,skill.key);
-    $('skill-level-'+skill.key).textContent=`Lv. ${level} / 5`;
-    button.disabled=level>=5||state.energy<price;
-    button.textContent=level>=5?'已达满级':`${level?'升级':'解锁'} · ${format(price)} EL`;
-    $('skill-effect-'+skill.key).textContent=skill.key==='metabolism'?`当前总产能加成 +${level*20}%`:skill.key==='foraging'?`当前固定增益 +${(L.count(state)*level*.15).toFixed(2)} 能量/秒（参与产能加成）`:`已抵达 ${L.chapterCount(state)} 章 · 当前总产能加成 +${level*L.chapterCount(state)*4}%`;
+    $('skill-level-'+skill.key).textContent=`Lv. ${level} / 12`;
+    button.disabled=level>=12||state.energy<price;
+    button.textContent=level>=12?'已达满级':`${level?'升级':'解锁'} · ${format(price)} EL`;
+    const effect=L.skillEffect(state,skill.key);
+    $('skill-effect-'+skill.key).textContent=L.flatSkills.includes(skill.key)?`当前固定增益 +${effect.toFixed(2)} 能量/秒（参与产能加成）`:`当前总产能加成 +${(effect*100).toFixed(1)}%`;
   }
   $('evolution-speed').textContent = `演化速度 ×${L.evolutionRate(state).toFixed(2)}`;
   const pct=n=>(n>=0?'+':'')+Math.round(n*100)+'%';
   $('buffs').innerHTML = state.buffs.length?state.buffs.map(b=>`<div class="buff"><span>${escapeHtml(b.label)}<small>${b.energy?'产能 '+pct(b.energy)+' ':''}${b.evolution?'演化 '+pct(b.evolution):''}</small></span><b>${Math.max(0,b.expires-state.age)}s</b></div>`).join(''):'<p class="empty-buff">此刻风平浪静，世界事件会带来新的变化。</p>';
-  const pending=state.pending,key=pending?pending.index+'-'+state.eventIndex:'waiting';
+  const pending=state.pending,key=pending?pending.index+'-'+state.eventIndex+'-'+L.attributes.map(a=>state.attrs[a.key]).join(',')+'-'+state.lineage.stages.length:'waiting';
   $('event-clock').textContent = pending?'等待你的选择 · 无时间限制':state.paused?'演化暂停':'随机来临 · 无固定间隔';
   if(key!==eventKey){
     eventKey=key;
-    if(pending){const event=L.events[pending.index];$('event-content').innerHTML=`<div class="event-title"><span>◇</span><h3>${event.name}</h3></div><p>${event.note}</p><div class="event-options">${event.options.map((o,i)=>`<button data-choice="${i}"><b>${i+1}. ${o.name}</b><small>${o.note}</small></button>`).join('')}</div><p class="event-help">没有选择时间限制，挂机成长会照常继续。选择永久改变属性，并添加限时增减益。负向属性最低减至 0。</p>`;
+    if(pending){const event=L.events[pending.index];$('event-content').innerHTML=`<div class="event-title"><span>◇</span><h3>${event.name}</h3></div><p>${event.historical?escapeHtml(event.date)+"<br>":""}${escapeHtml(event.note)}</p>${event.historical?`<a class="history-source" href="${event.source}" target="_blank" rel="noopener noreferrer">史实资料 ↗</a><p class="event-help">以下属性与增减益为游戏设计。</p>`:""}<div class="event-options">${event.options.map((o,i)=>`<button data-choice="${i}"><b>${i+1}. ${o.name}</b><small>${o.note}</small><small class="route-impact">${escapeHtml(L.choicePreview(state,i))}</small></button>`).join('')}</div><p class="event-help">没有选择时间限制，挂机成长会照常继续。选择永久改变属性，并影响尚未锁定的分化；增减益限时生效。负向属性最低减至 0。</p>`;
     }else $('event-content').innerHTML='<div class="event-title"><span>✧</span><h3>世界正在悄悄改变</h3></div><p>事件会在不固定的时间随机出现。它会一直等待你决定，自动成长照常继续；处理后，下一次事件将在随机间隔后到来。</p><div class="event-wait">一段等待，也是一段生长。</div>';
   }
   const last=state.eventLog[0];
@@ -122,8 +132,8 @@ $('attribute-rows').addEventListener('click',e=>{const b=e.target.closest('[data
 $('event-content').addEventListener('click',e=>{const b=e.target.closest('[data-choice]');if(b){sync();if(L.choose(state,Number(b.dataset.choice))){save();render();toast('选择已生效：属性与后续路线已更新。');}else{render();toast('这场事件已处理。');}}});
 $('route-path').addEventListener('click',e=>{const b=e.target.closest('[data-chapter]');if(b){chapter=b.dataset.chapter;$('chapter').value=chapter;renderList();document.querySelector('.collection').scrollIntoView({behavior:'smooth',block:'start'});}});
 $('jump-decisions').addEventListener('click',()=>document.querySelector('.decisions').scrollIntoView({behavior:'smooth',block:'start'}));
-restore(); lastCount = L.count(state);
-$('chapter').innerHTML = '<option value="all">完整路线 · 200 种生命</option>' + L.chapters.map((c,i) => `<option value="${i}">${String(i+1).padStart(2,'0')} ${c.name} · 20 种</option>`).join('');
+restore(); lastProgress=L.progress(state);
+$('chapter').innerHTML = `<option value="all">全图鉴 · ${L.species.length} 种可预览形态</option>` + L.chapters.map((c,i) => `<option value="${i}">${c.fantasy?'✧ ':''}${String(i+1).padStart(2,'0')} ${c.name} · 20 种</option>`).join('');
 $('chapter').addEventListener('change', () => { chapter = $('chapter').value; renderList(); $('species-list').scrollTop = 0; });
 renderList(); render();
 $('species-list').addEventListener('click', e => { const b = e.target.closest('[data-id]'); if (b) showDetail(b.dataset.id); });
@@ -140,7 +150,8 @@ $('focus').addEventListener('click', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('detail').open && document.body.classList.contains('focused')) $('focus').click(); });
 $('scene-info').addEventListener('click', () => {
-  $('dialog-content').innerHTML = '<div class="eyebrow">A SMALL WORLD OF YOUR OWN</div><h2>200 次相遇，一段浮生。</h2><p>十个章节，每章二十种具名生命。从原初细胞走向海洋、绿洲、蕨林与天空，最终抵达温暖的哺乳动物世界。</p><p>打开即自动积累能量、升级生态、发现新生命。基础节奏为 45 秒遇见第二种、2 分钟遇见第三种，随后约每 2 分半钟发现一种，完整基础路线约 8 小时；属性和事件会改变实际速度。体魄、灵巧、适应、感知、智慧、繁衍六维属性改变物种发现优先级及后续章节顺序。生命技能使用能量解锁升级，持续影响能量获取。世界事件有两种应对方式，会永久改变属性并添加限时增减益；事件在随机间隔后出现，没有选择时间限制，待处理期间挂机成长会继续。每发现 5 种生命获得 2 个属性点。图鉴可按章节浏览；生态缸轮流展示各章节代表，并使用示意外形与配色变化。</p><p>离开后最多结算 8 小时的成长。暂停会同时停止在线与离线成长。</p><p>这是跨生命类群的想象之旅，并非所有物种沿一条直线演变。顺序、时间、外观与共存场景是艺术演绎。</p>';
+  $('dialog-content').innerHTML = '<div class="eyebrow">A SMALL WORLD OF YOUR OWN</div><h2>你的选择，写下这条生命线。</h2><p>340种生命形象供图鉴预览，包括300种真实生命和40种原创幻想生命。每轮演化只走41步：12步共同序章、24步真实分化、4步幻想新生和1个最终形态，不会在终点补完所有路线。</p><p>首次分化依据最高属性锁定主线；同分按体魄、灵巧、适应、感知、智慧、繁衍排序。后续阶段在进入时按属性锁定具体形态。事件与加点会影响尚未锁定的阶段和终点，已锁定分支不回溯。</p><p>基础旅程约6.4小时，可调整演化速度。每发现5种新生命获得2属性点。9项生命技能最高Lv.12，消耗生命能量研发。生态等级仍自动升到50级。历史大事件按年代顺序在演化阶段内随机出现；事件无倒计时，待决定期间自动成长继续。史实与游戏效果分别标注。</p><p>旧存档的能量、技能、属性和图鉴发现全部保留，并从迁移时开始本轮单线旅程。进度自动保存，离线最多结算8小时；暂停时不成长。</p><p>这是生命形态的艺术演绎；相邻物种不表示直接祖先与后代，幻想形象和生态均为原创设定。</p>';
+
   $('detail').showModal();
 });
 $('save-menu').addEventListener('click', () => {
@@ -152,10 +163,10 @@ $('save-menu').addEventListener('click', () => {
 $('import-file').addEventListener('change', async e => {
   const file = e.target.files[0]; if (!file) return;
   try {
-    if (file.size > 10000) throw Error('size');
+    if (file.size > 100000) throw Error('size');
     const imported = JSON.parse(await file.text()); if (!L.valid(imported)) throw Error('invalid');
     state = L.migrate(imported); state.savedAt=Date.now();
-    lastTick = Date.now(); lastCount = L.count(state); selected = L.latest(state).id;
+    lastTick = Date.now(); lastProgress=L.progress(state); selected = L.latest(state).id;
     save(); renderList(); render(); $('detail').close(); toast('存档已恢复，小世界回来了。');
   } catch { toast('这份存档无法读取，当前进度已保留。'); }
   e.target.value = '';
@@ -269,7 +280,8 @@ function plant(x,y,size,t,seed) {
 }
 function drawBackground(t) {
   ctx.clearRect(0,0,w,h);
-  const bg=ctx.createLinearGradient(0,0,w*.4,h);bg.addColorStop(0,'#183a31');bg.addColorStop(.5,'#102d29');bg.addColorStop(1,'#0c211e');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+  const dreaming=L.latest(state).fantasy;
+  const bg=ctx.createLinearGradient(0,0,w*.4,h);bg.addColorStop(0,dreaming?'#293653':'#183a31');bg.addColorStop(.5,dreaming?'#21233e':'#102d29');bg.addColorStop(1,dreaming?'#151b2d':'#0c211e');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
   for(let i=0;i<4;i++){ctx.beginPath();const x=w*(.15+i*.2);ctx.moveTo(x,-5);ctx.lineTo(x+w*.28,h);ctx.lineTo(x+w*.02,h);ctx.lineTo(x-25,-5);ctx.closePath();const ray=ctx.createLinearGradient(0,0,0,h);ray.addColorStop(0,'#d1e4b107');ray.addColorStop(1,'#b9d4ac00');ctx.fillStyle=ray;ctx.fill();}
   for(let i=0;i<75;i++){const x=rand(i+4)*w+Math.sin(t*.12+i)*7,y=(rand(i+90)*h-t*(1+rand(i)*4))%h;ellipse(x,(y+h)%h,i%7===0?1.8:.7,i%7===0?1.8:.7,`rgba(183,211,166,${.08+rand(i+500)*.18})`);}
   ctx.beginPath();ctx.moveTo(0,h);ctx.lineTo(0,h-35);ctx.bezierCurveTo(w*.2,h-77,w*.25,h-18,w*.48,h-35);ctx.bezierCurveTo(w*.72,h-68,w*.85,h-29,w,h-65);ctx.lineTo(w,h);ctx.closePath();ctx.fillStyle='#273a2b';ctx.fill();
@@ -285,39 +297,27 @@ function frame(now) {
   if (!state.paused && !document.hidden) sceneClock+=dt*(slow?.25:1);
   if (!document.hidden) {
     const t=sceneClock;drawBackground(t);
-    const known=state.found.map(f=>L.species.find(s=>s.id===f.id));
-    const representatives=L.chapters.flatMap((_,group)=>{const list=known.filter(s=>s.group===group);return list.length?[list[(Math.floor(t/18)+group)%list.length]]:[];});
-    const picked=L.species.find(s=>s.id===selected);
-    const visible=Array.from(new Map([...representatives,L.latest(state),...(picked&&L.has(state,picked.id)?[picked]:[])].map(s=>[s.id,s])).values());
-    for(const life of visible){
-      const kind=life.type,number=kind<2?Math.min(5,2+Math.floor(state.age/7)):2;
-      for(let i=0;i<number;i++){
-        const seed=life.group*31+life.variant*7+i+12,scale=(kind>=10?.55:kind>=5?.6:.5)+rand(seed+80)*.35;
-        let x=(.12+rand(seed)*.76)*w+Math.sin(t*(.08+rand(seed)*.05)+seed)*w*.075;
-        let y=h*(.32+rand(seed+35)*.43)+Math.cos(t*.15+seed)*15;
-        if(kind===3||kind===5||kind===6||kind===8||kind===10||kind===11)y=h-55-rand(seed+300)*35+Math.sin(t*.2+seed)*4;
-        if(kind===7)y=h*(.24+rand(seed+35)*.2)+Math.sin(t*.3+seed)*17;
-        ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
-        if(kind===0||kind===1||kind===3)ctx.rotate(Math.sin(t*.12+seed)*.4+seed);
-        else if(kind!==8&&rand(seed)>.5)ctx.scale(-1,1);
-        ctx.scale(.85+(life.variant%4)*.1,.85+Math.floor(life.variant/4)*.065);
-        const artwork=Art.image(life.group);
-        if(artwork){
-          const r=Art.cell(life,artwork),size=kind<2?98:kind>=10?155:135,dh=size*r.h/r.w;
-          if(kind<3){const pulse=1+Math.sin(t*1.3+seed)*.025;ctx.scale(pulse,1/pulse);}
-          ctx.globalCompositeOperation=life.group===0?'screen':'source-over';
-          ctx.filter=life.group===0?'invert(1) hue-rotate(180deg)':'none';
-          ctx.drawImage(artwork,r.x,r.y,r.w,r.h,-size/2,-dh/2,size,dh);
-        }else{
-          ctx.filter=`hue-rotate(${(life.variant%7-3)*8}deg)`;
-          ctx.shadowBlur=kind<3?12:5;ctx.shadowColor=life.color+'22';drawers[kind](t+seed,life.variant);
-        }
-        ctx.restore();
-        if(i===0&&(life.id===L.latest(state).id||life.id===selected)){
-          ctx.font='9px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.fillStyle='#bdcea496';ctx.fillText(life.name,x,y+47*scale);
-        }
-      }
+    const life=L.latest(state),kind=life.type,seed=life.group*31+life.variant*7+12;
+    const size=Math.min(260,w*.63,h*.43)*(kind<2?.65:kind===9?.8:1);
+    const x=w*.5+Math.sin(t*.15+seed)*w*.065;
+    let y=h*.62+Math.cos(t*.2+seed)*10;
+    if([3,5,6,8,10,11].includes(kind))y=h-size*.55-55+Math.sin(t*.2+seed)*4;
+    if(kind===7)y=h*.53+Math.sin(t*.3+seed)*17;
+    ctx.save();ctx.translate(x,y);
+    if(kind<2)ctx.rotate(Math.sin(t*.12+seed)*.15);
+    const artwork=Art.image(life.group);
+    if(artwork){
+      const r=Art.cell(life,artwork),dh=size*r.h/r.w;
+      if(kind<3){const pulse=1+Math.sin(t*1.3+seed)*.025;ctx.scale(pulse,1/pulse);}
+      ctx.globalCompositeOperation=life.group===0?'screen':'source-over';
+      ctx.filter=life.group===0?'invert(1) hue-rotate(180deg)':'none';
+      ctx.drawImage(artwork,r.x,r.y,r.w,r.h,-size/2,-dh/2,size,dh);
+    }else{
+      ctx.scale(size/90,size/90);ctx.filter=`hue-rotate(${(life.variant%7-3)*8}deg)`;
+      ctx.shadowBlur=kind<3?12:5;ctx.shadowColor=life.color+'22';drawers[kind](t+seed,life.variant);
     }
+    ctx.restore();
+    ctx.font='10px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.fillStyle='#bdcea4b0';ctx.fillText(life.name,x,y+size/2+12);
     const vignette=ctx.createRadialGradient(w/2,h*.5,h*.2,w/2,h*.5,Math.max(w,h)*.72);vignette.addColorStop(0,'#071b1700');vignette.addColorStop(1,'#041713a0');ctx.fillStyle=vignette;ctx.fillRect(0,0,w,h);
   }
   requestAnimationFrame(frame);

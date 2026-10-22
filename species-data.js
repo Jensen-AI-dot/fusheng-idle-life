@@ -203,13 +203,18 @@
 大熊猫|在竹影里留一段悠闲
 赤鹿|枝角与森林交换问候` }
   ];
+  const expansion=typeof module!=='undefined'&&module.exports?require('./expansion-data.js'):root.LifeExpansion;
+  chapters.push(...expansion.chapters);
   const species = chapters.flatMap((chapter,group) => chapter.entries.split('\n').map((entry,variant) => {
     const [name,note]=entry.split('|'), index=group*20+variant;
     let type=chapter.type;
     if(group===0 && variant>=8)type=1;
     if(group===6 && variant>=10)type=6;
+    if(group===15)type=[11,8,11,11,11,11,4,4,6,9,3,6,7,11,11,7,7,4,11,11][variant];
+    if(group===16)type=[4,2,11,9,9,7,7,7,11,6,4,6,7,9,2,8,11,4,6,11][variant];
     return {id: index===0?'cell':`life-${String(index+1).padStart(3,'0')}`,name,note,group,variant,type,
-      at:index===0?0:index===1?45:120+Math.round((index-2)*28680/197),
+      at:index===0?0:index===1?45:index<200?120+Math.round((index-2)*28680/197):index<300?28800+(index-199)*90:37800+(index-299)*120,
+      fantasy:!!chapter.fantasy,
       era:chapter.name,latin:chapter.en,color:chapter.color,kind:chapter.name,
       detail:`${name}来到${chapter.habitat}。${note}。${chapter.story}`};
   }));
