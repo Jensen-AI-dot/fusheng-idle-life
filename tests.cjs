@@ -104,3 +104,5 @@ require('./cultivation.test.cjs');
 
 require('./art.test.cjs');
 
+require('./ui.test.cjs');
+

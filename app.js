@@ -4,6 +4,18 @@ const L = window.Life;
 const Art = window.LifeArt;
 function paintArtwork(){document.querySelectorAll('.species-art').forEach(el=>{if(Art.paint(el.querySelector('canvas'),Number(el.dataset.artGroup),Number(el.dataset.artVariant)))el.classList.add('ready');});}
 window.addEventListener('life-art-ready',paintArtwork);
+function selectTab(name, focus = false){
+  document.querySelectorAll('[data-tab]').forEach(tab=>{
+    const active=tab.dataset.tab===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;
+    $('pane-'+tab.dataset.tab).hidden=!active;if(active&&focus)tab.focus();
+  });
+}
+$('tab-cultivate').parentElement.addEventListener('click',e=>{const tab=e.target.closest('[data-tab]');if(tab)selectTab(tab.dataset.tab);});
+$('tab-cultivate').parentElement.addEventListener('keydown',e=>{
+  const tabs=[...document.querySelectorAll('[data-tab]')],index=tabs.indexOf(e.target);if(index<0)return;
+  const target=e.key==='ArrowRight'?(index+1)%tabs.length:e.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:null;
+  if(target!==null){e.preventDefault();selectTab(tabs[target].dataset.tab,true);}
+});
 const KEY = 'fusheng-life-v4';
 let state = L.create(), selected = 'cell', filter = 'all', chapter = 'all', slow = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let toastTimer, saveWarning = false, sessionSeconds = 0, eventKey = '', lastProgress = 1;
@@ -48,7 +60,7 @@ function icon(s, locked = false, large = false) {
   };
   const key = ['cell','algae','jelly','trilobite','fish','amphibian','reptile','bird','plant','insect','dinosaur','mammal'][s.type];
   Art.image(s.group);
-  return `<span class="species-art" data-art-group="${s.group}" data-art-variant="${s.variant}"><canvas width="${large?340:96}" height="${large?340:96}" aria-hidden="true"></canvas><svg viewBox="0 0 40 40" aria-hidden="true" style="color:${s.color}">${shapes[key]}</svg></span>`;
+  return `<span class="species-art" data-art-group="${s.group}" data-art-variant="${s.variant}"><canvas width="${large?112:48}" height="${large?112:48}" aria-hidden="true"></canvas><svg viewBox="0 0 40 40" aria-hidden="true" style="color:${s.color}">${shapes[key]}</svg></span>`;
 }
 function renderList() {
   $('species-list').innerHTML = L.species.filter(s => (filter === 'all' || L.has(state,s.id)) && (chapter === 'all' || s.group === Number(chapter))).map(s => {
@@ -66,6 +78,8 @@ function showDetail(id) {
 }
 function render() {
   const count = L.count(state), current = L.latest(state), next = L.next(state);
+  $('compact-phase').textContent=`${L.progress(state)} / ${L.journeySize} 步`;
+  $('compact-level').textContent=`Lv.${state.level}`;
   $('watch').textContent = clock(sessionSeconds);
   $('energy').innerHTML = format(state.energy) + '<span> EL</span>';
   $('rate').textContent = state.paused ? '0.0' : L.rate(state).toFixed(1);
@@ -89,6 +103,7 @@ function render() {
   $('auto-label').textContent = state.paused ? '演化已暂停' : '自动演化已开启';
   $('pause').textContent = state.paused ? '▷ 继续观察' : 'Ⅱ 暂停观察';
   $('motion').setAttribute('aria-pressed', String(slow));
+  $('motion').setAttribute('aria-label',slow?'舒缓动效，已开启':'舒缓动效，已关闭');
   $('motion').textContent = slow ? '≈ 舒缓中' : '≈ 舒缓动效';
   $('speed').value=String(state.speed??1);
   $('journal').innerHTML = state.found.slice(-3).reverse().map(f => { const s=L.species.find(x=>x.id===f.id);return `<li>${f.age ? '发现了'+s.name : '第一颗细胞诞生了'}<small>${clock(f.age)} · ${s.era}</small></li>`; }).join('');
@@ -122,6 +137,8 @@ function renderDecisions() {
   const pct=n=>(n>=0?'+':'')+Math.round(n*100)+'%';
   $('buffs').innerHTML = state.buffs.length?state.buffs.map(b=>`<div class="buff"><span>${escapeHtml(b.label)}<small>${b.energy?'产能 '+pct(b.energy)+' ':''}${b.evolution?'演化 '+pct(b.evolution):''}</small></span><b>${Math.max(0,b.expires-state.age)}s</b></div>`).join(''):'<p class="empty-buff">此刻风平浪静，世界事件会带来新的变化。</p>';
   const pending=state.pending,key=pending?pending.index+'-'+state.eventIndex+'-'+L.attributes.map(a=>stats[a.key]).join(',')+'-'+state.lineage.stages.length:'waiting';
+  $('event-badge').hidden=!pending;
+  $('tab-events').setAttribute('aria-label',pending?'事件，有待选择事件':'事件');
   $('event-clock').textContent = pending?'等待你的选择 · 无时间限制':state.paused?'演化暂停':'随机来临 · 无固定间隔';
   if(key!==eventKey){
     eventKey=key;
@@ -169,8 +186,8 @@ $('skill-cards').innerHTML=L.skills.map(s=>`<article class="skill-card"><div><h3
 $('skill-cards').addEventListener('click',e=>{const b=e.target.closest('[data-skill]');if(b){sync();const before=L.rate(state);if(L.learn(state,b.dataset.skill)){save();render();toast(`技能已生效：产能 ${before.toFixed(1)} → ${L.rate(state).toFixed(1)} / 秒。`);}else{render();toast('当前能量不足，或该技能已满级。');}}});
 $('attribute-rows').addEventListener('click',e=>{const b=e.target.closest('[data-stat]');if(b){sync();if(L.allocate(state,b.dataset.stat)){save();render();renderList();}}});
 $('event-content').addEventListener('click',e=>{const b=e.target.closest('[data-choice]');if(b){sync();if(L.choose(state,Number(b.dataset.choice))){save();render();toast('选择已生效：属性与后续路线已更新。');}else{render();toast('这场事件已处理。');}}});
-$('route-path').addEventListener('click',e=>{const b=e.target.closest('[data-chapter]');if(b){chapter=b.dataset.chapter;$('chapter').value=chapter;renderList();document.querySelector('.collection').scrollIntoView({behavior:'smooth',block:'start'});}});
-$('jump-decisions').addEventListener('click',()=>document.querySelector('.decisions').scrollIntoView({behavior:'smooth',block:'start'}));
+$('route-path').addEventListener('click',e=>{const b=e.target.closest('[data-chapter]');if(b){chapter=b.dataset.chapter;$('chapter').value=chapter;renderList();selectTab('collection');}});
+$('jump-decisions').addEventListener('click',()=>{selectTab(state.pending?'events':'cultivate',true);});
 restore(); lastProgress=L.progress(state);
 $('chapter').innerHTML = `<option value="all">全图鉴 · ${L.species.length} 种可预览形态</option>` + L.chapters.map((c,i) => `<option value="${i}">${c.fantasy?'✧ ':''}${String(i+1).padStart(2,'0')} ${c.name} · 20 种</option>`).join('');
 $('chapter').addEventListener('change', () => { chapter = $('chapter').value; renderList(); $('species-list').scrollTop = 0; });
@@ -232,11 +249,11 @@ window.addEventListener('storage', e => {
   try { const s = JSON.parse(e.newValue); if (L.valid(s)) { state = L.migrate(s); lastTick = Date.now(); render(); renderList(); } } catch { /* Keep current state when another tab writes invalid data. */ }
 });
 
-// The observation scene is drawn locally, with no downloaded artwork or audio.
+// Render the complete observation scene at low resolution for pixel scaling.
 const canvas = $('world'), ctx = canvas.getContext('2d');
 let w = 600, h = 520, sceneClock = 0, lastFrame = 0;
 const rand = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-function resize() { const r = canvas.getBoundingClientRect(); w = r.width; h = r.height; const d = Math.min(devicePixelRatio || 1, 2); canvas.width = Math.round(w*d); canvas.height = Math.round(h*d); ctx.setTransform(d,0,0,d,0,0); }
+function resize() { const r=canvas.getBoundingClientRect();w=r.width;h=r.height;canvas.width=Math.max(1,Math.round(w/3));canvas.height=Math.max(1,Math.round(h/3));ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);ctx.imageSmoothingEnabled=true; }
 new ResizeObserver(resize).observe(canvas);
 function ellipse(x,y,rx,ry,color,stroke) { ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); if(color){ctx.fillStyle=color;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.8;ctx.stroke();} }
 function line(points,color,width=1) { ctx.beginPath(); points.forEach((p,i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p));ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke(); }
@@ -330,17 +347,21 @@ function plant(x,y,size,t,seed) {
   ctx.restore();
 }
 function drawBackground(t) {
-  ctx.clearRect(0,0,w,h);
   const dreaming=L.latest(state).fantasy;
-  const bg=ctx.createLinearGradient(0,0,w*.4,h);bg.addColorStop(0,dreaming?'#293653':'#183a31');bg.addColorStop(.5,dreaming?'#21233e':'#102d29');bg.addColorStop(1,dreaming?'#151b2d':'#0c211e');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
-  for(let i=0;i<4;i++){ctx.beginPath();const x=w*(.15+i*.2);ctx.moveTo(x,-5);ctx.lineTo(x+w*.28,h);ctx.lineTo(x+w*.02,h);ctx.lineTo(x-25,-5);ctx.closePath();const ray=ctx.createLinearGradient(0,0,0,h);ray.addColorStop(0,'#d1e4b107');ray.addColorStop(1,'#b9d4ac00');ctx.fillStyle=ray;ctx.fill();}
-  for(let i=0;i<75;i++){const x=rand(i+4)*w+Math.sin(t*.12+i)*7,y=(rand(i+90)*h-t*(1+rand(i)*4))%h;ellipse(x,(y+h)%h,i%7===0?1.8:.7,i%7===0?1.8:.7,`rgba(183,211,166,${.08+rand(i+500)*.18})`);}
-  ctx.beginPath();ctx.moveTo(0,h);ctx.lineTo(0,h-35);ctx.bezierCurveTo(w*.2,h-77,w*.25,h-18,w*.48,h-35);ctx.bezierCurveTo(w*.72,h-68,w*.85,h-29,w,h-65);ctx.lineTo(w,h);ctx.closePath();ctx.fillStyle='#273a2b';ctx.fill();
-  for(let i=0;i<60;i++)ellipse(rand(i+100)*w,h-10-rand(i+200)*31,2+rand(i)*8,1+rand(i+5)*3,'#79926718');
-  for(let i=0;i<9;i++)plant((i/8)*w+Math.sin(i)*15,h-25-rand(i)*24,.5+rand(i+5)*.8,t,i);
-  // Soft rings give the scene the feeling of an illuminated observation lens.
-  ctx.strokeStyle='#c6e4b108';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(w*.5,h*.51,w*.36,h*.3,0,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=dreaming?'#242d43':'#1e4030';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle=dreaming?'#303e54':'#2b5139';
+  for(let i=0;i<5;i++)ctx.fillRect(Math.floor(w*(i*.25)-20),h*.28+Math.sin(i*5)*20,w*.17,h*.72);
+  ctx.fillStyle=dreaming?'#314663':'#355f3e';
+  for(let i=0;i<35;i++){const x=Math.floor(rand(i+4)*w/6)*6,y=Math.floor(((rand(i+90)*h-t*(1+rand(i)*3))%h+h)%h/6)*6;ctx.fillRect(x,y,i%5===0?6:3,i%5===0?6:3);}
+  for(let i=0;i<12;i++){
+    const x=i*w/11,top=h-24-rand(i+30)*28;
+    ctx.fillStyle=dreaming?'#314452':'#3b5837';ctx.fillRect(x,top,w/11+2,h-top);
+    ctx.fillStyle=dreaming?'#536476':'#7b9251';ctx.fillRect(x,top,w/11+2,6);
+    ctx.fillStyle='#172f25';ctx.fillRect(x+12,top+12,9,6);
+  }
+  for(let i=0;i<9;i++)plant((i/8)*w,h-25-rand(i)*24,.35+rand(i+5)*.55,t,i);
 }
+
 const drawers=[cell,algae,jelly,trilobite,fish,(t,v)=>lizard(t,false,v),(t,v)=>lizard(t,true,v),bird,plantLife,insect,dinosaur,mammal];
 function frame(now) {
   if(lastFrame&&now-lastFrame<1000/30){requestAnimationFrame(frame);return;}
