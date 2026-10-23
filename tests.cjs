@@ -17,7 +17,7 @@ test('pause stops progress and long absences are capped at eight hours', () => {
 });
 test('save validation rejects corrupt, negative, and impossible values', () => {
   const s = L.create(); assert.ok(L.valid(s));
-  for (const patch of [{age:-1}, {level:51}, {fraction:1}, {total:Infinity}, {energy:2}, {version:4}, {paused:'yes'}, {attrs:{power:-1}}, {found:[{id:'missing',age:0}]}, {points:-1}, {buffs:[{label:'bad',energy:1e99}]}]) assert.equal(L.valid({...s,...patch}), false);
+  for (const patch of [{age:-1}, {level:51}, {fraction:1}, {total:Infinity}, {energy:2}, {version:5}, {paused:'yes'}, {attrs:{power:-1}}, {found:[{id:'missing',age:0}]}, {points:-1}, {buffs:[{label:'bad',energy:1e99}]}]) assert.equal(L.valid({...s,...patch}), false);
 });
 test('340 unique life forms remain available for the full collection preview',()=>{
   assert.equal(L.species.length,340);assert.equal(new Set(L.species.map(s=>s.id)).size,340);assert.equal(new Set(L.species.map(s=>s.name)).size,340);
@@ -63,7 +63,7 @@ test('rerouting never removes or duplicates previously found life', () => {
 });
 test('old saves migrate without losing age, energy, or upgrade levels', () => {
   const old={version:1,age:500,fraction:.25,energy:25,total:500,level:4,paused:false,savedAt:Date.now()};
-  const s=L.migrate(old);assert.equal(s.version,3);assert.equal(s.energy,25);assert.equal(s.age,500);assert.equal(s.level,4);
+  const s=L.migrate(old);assert.equal(s.version,4);assert.equal(s.energy,25);assert.equal(s.age,500);assert.equal(s.level,4);
   assert.ok(s.points>=5);assert.ok(L.valid(s));assert.deepEqual(L.migrate(s),s);
 });
 test('speed scales only evolution, preserves real-time events and production, and migrates', () => {
@@ -99,4 +99,6 @@ test('skills and six-dimensional attributes survive offline simulation and three
 
 require('./lineage.test.cjs');
 
+
+require('./cultivation.test.cjs');
 

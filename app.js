@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const L = window.Life;
 const Art = window.LifeArt;
 window.addEventListener('life-art-ready',e=>document.querySelectorAll(`[data-art-group="${e.detail}"]`).forEach(el=>el.classList.add('ready')));
-const KEY = 'fusheng-life-v3';
+const KEY = 'fusheng-life-v4';
 let state = L.create(), selected = 'cell', filter = 'all', chapter = 'all', slow = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let toastTimer, saveWarning = false, sessionSeconds = 0, eventKey = '', lastProgress = 1;
 const escapeHtml = text => String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -18,13 +18,14 @@ function save() {
 }
 function restore() {
   try {
-    const raw = localStorage.getItem(KEY)??localStorage.getItem('fusheng-life-v1'); if (!raw) return;
+    const raw = localStorage.getItem(KEY)??localStorage.getItem('fusheng-life-v3')??localStorage.getItem('fusheng-life-v1'); if (!raw) return;
     const restored = JSON.parse(raw); if (!L.valid(restored)) { toast('原存档无法读取，已开始新的生命旅程。'); return; }
     state = L.migrate(restored);
     const away = Math.min(28800, Math.max(0, (Date.now() - state.savedAt) / 1000));
     const before = state.total; L.advance(state, away);
     if (away >= 60) toast(state.paused ? '欢迎回来，生态缸仍保持暂停。' : `欢迎回来！离线生长 ${duration(away)}，获得 ${format(state.total - before)} 能量。`);
     if(restored.version<3)toast('旧图鉴、能量、属性和技能已保留；从本次回来开启新的单线演化旅程。');
+    else if(restored.version<4)toast('原有进度已保留，生命特性与遗传传承已开放。');
     selected = L.latest(state).id;
   } catch { toast('原存档无法读取，已开始新的生命旅程。'); }
 }
@@ -89,6 +90,7 @@ function render() {
   $('speed').value=String(state.speed??1);
   $('journal').innerHTML = state.found.slice(-3).reverse().map(f => { const s=L.species.find(x=>x.id===f.id);return `<li>${f.age ? '发现了'+s.name : '第一颗细胞诞生了'}<small>${clock(f.age)} · ${s.era}</small></li>`; }).join('');
   renderDecisions();
+  renderCultivation();
   if (step !== lastProgress) { selected = current.id; renderList(); toast(`演化第 ${step} 步：${current.name}。`); lastProgress = step; }
 }
 function renderDecisions() {
@@ -102,7 +104,8 @@ function renderDecisions() {
   }).join('<span class="route-arrow">›</span>');
   $('point-count').textContent = `可用 ${state.points} 点`;
   $('decision-hint').textContent=state.pending?'· 事件待选择':state.points?`· ${state.points} 点可分配`:'';
-  for(const a of L.attributes){$('stat-'+a.key).textContent=state.attrs[a.key];document.querySelector(`[data-stat="${a.key}"]`).disabled=state.points<1;}
+  const stats=L.effectiveAttrs(state);
+  for(const a of L.attributes){$('stat-'+a.key).textContent=stats[a.key];$('stat-source-'+a.key).textContent=`基础 ${state.attrs[a.key]} · 特性 +${(state.traits[L.traits.find(t=>t.attr===a.key).key]??0)*2} · 遗传 +${state.heritage.genes[a.key]}`;document.querySelector(`[data-stat="${a.key}"]`).disabled=state.points<1;}
   $('skill-production').textContent=`当前产能 ${state.paused?'0.0':L.rate(state).toFixed(1)} / 秒`;
   for(const skill of L.skills){
     const level=L.skillLevel(state,skill.key),button=$('learn-'+skill.key),price=L.skillCost(state,skill.key);
@@ -115,7 +118,7 @@ function renderDecisions() {
   $('evolution-speed').textContent = `演化速度 ×${L.evolutionRate(state).toFixed(2)}`;
   const pct=n=>(n>=0?'+':'')+Math.round(n*100)+'%';
   $('buffs').innerHTML = state.buffs.length?state.buffs.map(b=>`<div class="buff"><span>${escapeHtml(b.label)}<small>${b.energy?'产能 '+pct(b.energy)+' ':''}${b.evolution?'演化 '+pct(b.evolution):''}</small></span><b>${Math.max(0,b.expires-state.age)}s</b></div>`).join(''):'<p class="empty-buff">此刻风平浪静，世界事件会带来新的变化。</p>';
-  const pending=state.pending,key=pending?pending.index+'-'+state.eventIndex+'-'+L.attributes.map(a=>state.attrs[a.key]).join(',')+'-'+state.lineage.stages.length:'waiting';
+  const pending=state.pending,key=pending?pending.index+'-'+state.eventIndex+'-'+L.attributes.map(a=>stats[a.key]).join(',')+'-'+state.lineage.stages.length:'waiting';
   $('event-clock').textContent = pending?'等待你的选择 · 无时间限制':state.paused?'演化暂停':'随机来临 · 无固定间隔';
   if(key!==eventKey){
     eventKey=key;
@@ -125,7 +128,40 @@ function renderDecisions() {
   const last=state.eventLog[0];
   $('event-recent').textContent=last?`${last.automatic?'历史自动应对':'你的选择'} · ${last.name} → ${last.choice}`:'让世界自由生长，变化会在不经意间到来。';
 }
-$('attribute-rows').innerHTML=L.attributes.map(a=>`<div class="attribute-row"><div><b>${a.name}</b><small>${a.note}</small></div><strong id="stat-${a.key}">0</strong><button data-stat="${a.key}" aria-label="增加${a.name}，消耗1属性点">＋</button></div>`).join('');
+function cultivationPrediction(key,gene=false){
+  const copy={...state,traits:{...state.traits},heritage:{...state.heritage,genes:{...state.heritage.genes}}};
+  if(gene)copy.heritage.genes[key]++;else copy.traits[key]++;
+  const path=L.route(copy);
+  return !path.locked?`培育后主线预测：${path.name}`:path.preview?`下次分化预测：${L.species.find(s=>s.id===path.preview.ids[0]).name}`:gene?'终点已锁定；属性仍影响产能，并在下一轮继续生效。':'终点已锁定；本轮仍提升属性与产能，助力积累遗传点。';
+}
+function renderCultivation(){
+  for(const t of L.traits){
+    const level=state.traits[t.key],price=L.traitCost(state,t.key),button=$('trait-'+t.key);
+    $('trait-level-'+t.key).textContent=`Lv. ${level} / 12`;
+    $('trait-effect-'+t.key).textContent=`本轮${L.attributes.find(a=>a.key===t.attr).name} +${level*2} · ${level>=12?'已满级，本轮常驻；重开后清零。':cultivationPrediction(t.key)}`;
+    button.disabled=level>=12||state.energy<price;button.textContent=level>=12?'已达满级':`${level?'强化':'培育'} · ${format(price)} EL`;
+  }
+  const h=state.heritage;
+  $('generation-label').textContent=`第 ${h.generation+1} 代生命`;
+  $('heritage-points').textContent=format(h.points);$('heritage-pending').textContent=format(h.pending);
+  $('heritage-exchange-note').textContent=`兑换费用随累计兑换次数递增，每点比上次增加 2.5m EL；重开后费用不重置。已累计兑换 ${format(h.converted)} 点。`;
+  for(const [id,n] of [['exchange-one',1],['exchange-ten',10]]){
+    const price=L.heritageCost(state,n),button=$(id);button.disabled=state.energy<price||h.converted+n>1e6;button.textContent=`兑换 ${n} 点 · ${format(price)} EL`;
+  }
+  for(const a of L.attributes){
+    const level=h.genes[a.key],price=L.geneCost(state,a.key),button=$('gene-'+a.key);
+    $('gene-level-'+a.key).textContent=`Lv. ${level}`;
+    $('gene-effect-'+a.key).textContent=`永久${a.name} +${level} · ${cultivationPrediction(a.key,true)}`;
+    button.disabled=h.points<price;button.textContent=`培育 +1 · ${format(price)} 遗传点`;
+  }
+}
+$('trait-cards').innerHTML=L.traits.map(t=>`<article class="skill-card"><div><h3>${t.name}</h3><small id="trait-level-${t.key}"></small></div><p>${t.note} 每级${L.attributes.find(a=>a.key===t.attr).name} +2。</p><small class="skill-effect" id="trait-effect-${t.key}"></small><button class="soft-button" id="trait-${t.key}" data-trait="${t.key}"></button></article>`).join('');
+$('gene-cards').innerHTML=L.attributes.map(a=>`<article class="skill-card"><div><h3>${a.name}基因</h3><small id="gene-level-${a.key}"></small></div><p>每级永久${a.name} +1。升级消耗“当前等级 +1”遗传点，已培育基因重开后保留。</p><small class="skill-effect" id="gene-effect-${a.key}"></small><button class="soft-button" id="gene-${a.key}" data-gene="${a.key}"></button></article>`).join('');
+$('trait-cards').addEventListener('click',e=>{const b=e.target.closest('[data-trait]');if(b){sync();if(L.developTrait(state,b.dataset.trait)){save();render();toast('生命特性已生效：属性与未锁定分化的预测已更新。');}else{render();toast('生命能量不足，或特性已满级。');}}});
+$('gene-cards').addEventListener('click',e=>{const b=e.target.closest('[data-gene]');if(b){sync();if(L.developGene(state,b.dataset.gene)){save();render();toast('遗传基因已培育，本轮与未来每轮都会获得加成。');}else{render();toast('可用遗传点不足；本轮待传承点需要重开后才能使用。');}}});
+for(const [id,n] of [['exchange-one',1],['exchange-ten',10]])$(id).addEventListener('click',()=>{sync();if(L.exchangeHeritage(state,n)){save();render();toast(`获得 ${n} 点待传承点，下次重新开始后可用于培育。`);}else{render();toast('当前生命能量不足，或累计兑换已达上限。');}});
+$('heritage-restart').addEventListener('click',()=>{$('save-menu').click();$('restart').click();});
+$('attribute-rows').innerHTML=L.attributes.map(a=>`<div class="attribute-row"><div><b>${a.name}</b><small>${a.note}</small><small id="stat-source-${a.key}" class="stat-source"></small></div><strong id="stat-${a.key}">0</strong><button data-stat="${a.key}" aria-label="增加${a.name}，消耗1属性点">＋</button></div>`).join('');
 $('skill-cards').innerHTML=L.skills.map(s=>`<article class="skill-card"><div><h3>${s.name}</h3><small id="skill-level-${s.key}"></small></div><p>${s.note}</p><small class="skill-effect" id="skill-effect-${s.key}"></small><button class="soft-button" id="learn-${s.key}" data-skill="${s.key}"></button></article>`).join('');
 $('skill-cards').addEventListener('click',e=>{const b=e.target.closest('[data-skill]');if(b){sync();const before=L.rate(state);if(L.learn(state,b.dataset.skill)){save();render();toast(`技能已生效：产能 ${before.toFixed(1)} → ${L.rate(state).toFixed(1)} / 秒。`);}else{render();toast('当前能量不足，或该技能已满级。');}}});
 $('attribute-rows').addEventListener('click',e=>{const b=e.target.closest('[data-stat]');if(b){sync();if(L.allocate(state,b.dataset.stat)){save();render();renderList();}}});
@@ -150,24 +186,24 @@ $('focus').addEventListener('click', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('detail').open && document.body.classList.contains('focused')) $('focus').click(); });
 $('scene-info').addEventListener('click', () => {
-  $('dialog-content').innerHTML = '<div class="eyebrow">A SMALL WORLD OF YOUR OWN</div><h2>你的选择，写下这条生命线。</h2><p>340种生命形象供图鉴预览，包括300种真实生命和40种原创幻想生命。每轮演化只走41步：12步共同序章、24步真实分化、4步幻想新生和1个最终形态，不会在终点补完所有路线。</p><p>首次分化依据最高属性锁定主线；同分按体魄、灵巧、适应、感知、智慧、繁衍排序。后续阶段在进入时按属性锁定具体形态。事件与加点会影响尚未锁定的阶段和终点，已锁定分支不回溯。</p><p>基础旅程约6.4小时，可调整演化速度。每发现5种新生命获得2属性点。9项生命技能最高Lv.12，消耗生命能量研发。生态等级仍自动升到50级。历史大事件按年代顺序在演化阶段内随机出现；事件无倒计时，待决定期间自动成长继续。史实与游戏效果分别标注。</p><p>旧存档的能量、技能、属性和图鉴发现全部保留，并从迁移时开始本轮单线旅程。进度自动保存，离线最多结算8小时；暂停时不成长。</p><p>这是生命形态的艺术演绎；相邻物种不表示直接祖先与后代，幻想形象和生态均为原创设定。</p>';
+  $('dialog-content').innerHTML = '<div class="eyebrow">A SMALL WORLD OF YOUR OWN</div><h2>你的选择，写下这条生命线。</h2><p>340种生命形象供图鉴预览，包括300种真实生命和40种原创幻想生命。每轮演化只走41步：12步共同序章、24步真实分化、4步幻想新生和1个最终形态，不会在终点补完所有路线。</p><p>首次分化依据最高属性锁定主线；同分按体魄、灵巧、适应、感知、智慧、繁衍排序。后续阶段在进入时按属性锁定具体形态。事件与加点会影响尚未锁定的阶段和终点，已锁定分支不回溯。</p><p>基础旅程约6.4小时，可调整演化速度。每发现5种新生命获得2属性点。9项生命技能最高Lv.12，消耗生命能量研发。6项生命特性每级提供2属性，最高Lv.12，本轮重开后清零。多余能量可兑换待传承点，下次重开后用来培育永久基因，每级提供1属性。兑换费用随累计次数增加，基因升级费用为当前等级加1遗传点。遗传基因与未使用的遗传点重开后保留。生态等级仍自动升到50级。历史大事件按年代顺序在演化阶段内随机出现；事件无倒计时，待决定期间自动成长继续。史实与游戏效果分别标注。</p><p>旧存档的能量、技能、属性和图鉴发现全部保留，并从迁移时开始本轮单线旅程。进度自动保存，离线最多结算8小时；暂停时不成长。</p><p>这是生命形态的艺术演绎；相邻物种不表示直接祖先与后代，幻想形象和生态均为原创设定。</p>';
 
   $('detail').showModal();
 });
 $('save-menu').addEventListener('click', () => {
-  $('dialog-content').innerHTML = '<div class="eyebrow">KEEP YOUR LITTLE WORLD</div><h2>留住这方小世界</h2><p>进度每 5 秒自动保存在当前浏览器。换电脑、清理浏览器数据前，可以导出一份存档。</p><button class="soft-button" id="export">↓ 导出存档</button><button class="soft-button" id="import">↑ 导入存档</button><button class="soft-button" id="restart">↻ 重新开始</button><p style="font-size:11px">导入或重新开始会替换当前进度。需要时请先导出备份。</p>';
+  $('dialog-content').innerHTML = '<div class="eyebrow">KEEP YOUR LITTLE WORLD</div><h2>留住这方小世界</h2><p>进度每 5 秒自动保存在当前浏览器。换电脑、清理浏览器数据前，可以导出一份存档。</p><button class="soft-button" id="export">↓ 导出存档</button><button class="soft-button" id="import">↑ 导入存档</button><button class="soft-button" id="restart">↻ 重新开始</button><p style="font-size:11px">导入会替换本轮及遗传数据；重新开始会清空本轮进度，保留遗传传承。需要时请先导出备份。</p>';
   $('detail').showModal();
   $('export').onclick = () => { sync(); save(); const url = URL.createObjectURL(new Blob([JSON.stringify(state)], {type:'application/json'})); const a = document.createElement('a'); a.href = url; a.download = '浮生-生命存档.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); toast('已导出当前生命存档。'); };
   $('import').onclick = () => $('import-file').click();
   $('restart').onclick = () => {
-    $('dialog-content').innerHTML='<div class="eyebrow">A NEW BEGINNING</div><h2>重新开始这段生命旅程？</h2><p>这会清空当前图鉴、能量、属性、技能与演化路线，从初始细胞重新开始。演化速度恢复为 1×。</p><p>如需保留这段旅程，请取消并先导出存档。</p><button class="soft-button" id="cancel-restart">取消，保留进度</button><button class="soft-button" id="confirm-restart">确认重新开始</button>';
+    $('dialog-content').innerHTML=`<div class="eyebrow">A NEW BEGINNING</div><h2>重新开始这段生命旅程？</h2><p>这会清空本轮图鉴、能量、手动加点、技能、生命特性与演化路线，从初始细胞重新开始。演化速度恢复为 1×。</p><p>遗传基因和可用遗传点会保留。本轮 ${format(state.heritage.pending)} 点待传承点将结转，重开后共有 ${format(state.heritage.points+state.heritage.pending)} 点可用遗传点。</p><p>如需保留这段旅程，请取消并先导出存档。</p><button class="soft-button" id="cancel-restart">取消，保留进度</button><button class="soft-button" id="confirm-restart">确认重新开始</button>`;
     $('cancel-restart').onclick=()=>$('detail').close();
     $('confirm-restart').onclick=()=>{
-      state=L.create();selected='cell';filter='all';chapter='all';sessionSeconds=0;eventKey='';lastProgress=1;
+      state=L.restart(state);selected='cell';filter='all';chapter='all';sessionSeconds=0;eventKey='';lastProgress=1;
       lastTick=Date.now();lastSave=lastTick;sceneClock=0;lastFrame=0;
       $('chapter').value='all';
       document.querySelectorAll('[data-filter]').forEach(b=>{const on=b.dataset.filter==='all';b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
-      save();renderList();render();$('species-list').scrollTop=0;$('detail').close();toast('新的旅程开始了，从一颗细胞重新生长。');
+      save();renderList();render();$('species-list').scrollTop=0;$('detail').close();toast('新的旅程开始了，遗传基因已保留，待传承点已结转。');
     };
     $('cancel-restart').focus();
   };

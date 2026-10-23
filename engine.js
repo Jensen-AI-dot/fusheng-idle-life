@@ -13,6 +13,35 @@
     {key:'cooperation',name:'群体协作',base:800,note:'每级使总产能增加 6%，智慧每点额外增加 0.5%'},{key:'resilience',name:'逆境代谢',base:1000,note:'每级使总产能增加 5%，适应每点额外增加 0.5%'}];
   const defaultAttrs=()=>Object.fromEntries(attributes.map(a=>[a.key,0]));
   const defaultSkills=()=>Object.fromEntries(skills.map(s=>[s.key,0]));
+  const traits=[{key:'armor',name:'坚固装甲',attr:'power',note:'厚实的保护层，让身体更强壮。'},
+    {key:'wings',name:'轻盈翼膜',attr:'agility',note:'轻巧结构带来更灵活的运动。'},
+    {key:'coldproof',name:'耐寒组织',attr:'adaptation',note:'在变化的环境中保持生机。'},
+    {key:'nightvision',name:'夜视感官',attr:'perception',note:'在暗处感知更遥远的世界。'},
+    {key:'neural',name:'神经联结',attr:'intelligence',note:'更复杂的联结，孕育学习能力。'},
+    {key:'spores',name:'孢子繁殖',attr:'fertility',note:'让生命延续到更多角落。'}];
+  const defaultTraits=()=>Object.fromEntries(traits.map(t=>[t.key,0]));
+  const defaultHeritage=()=>({points:0,pending:0,converted:0,generation:0,genes:defaultAttrs()});
+  const traitFor=Object.fromEntries(traits.map(t=>[t.attr,t.key]));
+  const effectiveAttrs=s=>Object.fromEntries(attributes.map(a=>[a.key,(s.attrs[a.key]??0)+(s.traits?.[traitFor[a.key]]??0)*2+(s.heritage?.genes[a.key]??0)]));
+  const traitCost=(s,key)=>traits.some(t=>t.key===key)?Math.ceil(1e6*Math.pow(2,s.traits[key])*(1-Math.min(.4,effectiveAttrs(s).intelligence*.02))):Infinity;
+  function developTrait(s,key){
+    if(!traits.some(t=>t.key===key)||s.traits[key]>=12||s.energy<traitCost(s,key))return false;
+    s.energy-=traitCost(s,key);s.traits[key]++;return true;
+  }
+  const heritageCost=(s,n=1)=>[1,10].includes(n)?n*1e7+2.5e6*(n*s.heritage.converted+n*(n-1)/2):Infinity;
+  function exchangeHeritage(s,n=1){
+    if(![1,10].includes(n)||s.heritage.converted+n>1e6||s.energy<heritageCost(s,n))return false;
+    s.energy-=heritageCost(s,n);s.heritage.pending+=n;s.heritage.converted+=n;return true;
+  }
+  const geneCost=(s,key)=>attributes.some(a=>a.key===key)?s.heritage.genes[key]+1:Infinity;
+  function developGene(s,key){
+    if(!attributes.some(a=>a.key===key)||s.heritage.points<geneCost(s,key))return false;
+    s.heritage.points-=geneCost(s,key);s.heritage.genes[key]++;return true;
+  }
+  function restart(s,seed){
+    const fresh=create(seed),h=JSON.parse(JSON.stringify(s.heritage));
+    h.points+=h.pending;h.pending=0;h.generation=Math.min(1e6,h.generation+1);fresh.heritage=h;return fresh;
+  }
   const events = [
     {name:'火山灰飘来了',note:'天边的灰云改变了日照。生命可以等待，也可以追随新的热量。',options:[
       {name:'躲进温暖的岩隙',note:'适应 +2 · 体魄 −1 · 产能 −20% / 120秒',attrs:{adaptation:2,power:-1},energy:-.2,evolution:0,duration:120,label:'岩隙庇护'},
@@ -46,7 +75,7 @@
   function random(s){let x=s.randomState;x^=x<<13;x^=x>>>17;x^=x<<5;s.randomState=x>>>0||1;return s.randomState/4294967296;}
   function scheduleEvent(s){s.nextEvent=s.age+90+Math.floor(random(s)*271);}
   function create(seed){
-    const s={version:3,speed:1,randomState:((seed??Math.floor(Math.random()*4294967295)+1)>>>0)||1,age:0,fraction:0,evolution:0,energy:0,total:0,level:0,paused:false,savedAt:Date.now(),attrs:defaultAttrs(),skills:defaultSkills(),points:5,found:[{id:'cell',age:0}],buffs:[],pending:null,eventIndex:0,nextEvent:0,eventLog:[],historyIndex:0,lineage:newLineage(0)};
+    const s={version:4,speed:1,randomState:((seed??Math.floor(Math.random()*4294967295)+1)>>>0)||1,age:0,fraction:0,evolution:0,energy:0,total:0,level:0,paused:false,savedAt:Date.now(),attrs:defaultAttrs(),skills:defaultSkills(),traits:defaultTraits(),heritage:defaultHeritage(),points:5,found:[{id:'cell',age:0}],buffs:[],pending:null,eventIndex:0,nextEvent:0,eventLog:[],historyIndex:0,lineage:newLineage(0)};
     scheduleEvent(s);return s;
   }
   const count = s => s.found.length;
@@ -56,7 +85,7 @@
   const journeySize=41;
   function newLineage(origin){return {origin,progress:1,root:null,stages:[{group:0,key:'shared',reason:'共同的微观序章',ids:species.filter(x=>x.group===0).slice(0,12).map(x=>x.id)}]};}
   const progress=s=>s.lineage?.progress??1;
-  function dominant(s,excluded){return attributes.filter(a=>a.key!==excluded).reduce((best,a)=>s.attrs[a.key]>s.attrs[best.key]?a:best).key;}
+  function dominant(s,excluded){const stats=effectiveAttrs(s);return attributes.filter(a=>a.key!==excluded).reduce((best,a)=>stats[a.key]>stats[best.key]?a:best).key;}
   const stageIndex=n=>n<12?0:n<36?1+Math.floor((n-12)/6):n<40?5:6;
   function stagePlan(s,index,rootKey){
     if(index===0)return newLineage(0).stages[0];
@@ -65,22 +94,22 @@
     const chosen=new Set(s.lineage.stages.flatMap(x=>x.ids));
     let pool=species.filter(x=>x.group===group&&!chosen.has(x.id));
     if(index>=5)pool=pool.filter(x=>(index===5?path.forest:path.ends).includes(x.variant));
-    const secondary=dominant(s,key),order=attributes.filter(a=>a.key!==key).sort((a,b)=>s.attrs[b.key]-s.attrs[a.key]);
+    const stats=effectiveAttrs(s),secondary=dominant(s,key),order=attributes.filter(a=>a.key!==key).sort((a,b)=>stats[b.key]-stats[a.key]);
     // Primary stats select the main branch; secondary stats select forms within it.
     const score=x=>{
       if(index===6){
         const target=path.ends.indexOf(x.variant),traits=attributes.filter(a=>a.key!==key);
-        return traits.reduce((v,a,i)=>v+(i%path.ends.length===target?s.attrs[a.key]:0),0)-target*.001;
+        return traits.reduce((v,a,i)=>v+(i%path.ends.length===target?stats[a.key]:0),0)-target*.001;
       }
-      const k=affinity(x).key;return k===key?-1:s.attrs[k]*10+5-order.findIndex(a=>a.key===k);
+      const k=affinity(x).key;return k===key?-1:stats[k]*10+5-order.findIndex(a=>a.key===k);
     };
     pool.sort((a,b)=>score(b)-score(a)||a.variant-b.variant);
-    return {group,key:secondary,reason:`${attributes.find(a=>a.key===key).name}主线 · ${attributes.find(a=>a.key===secondary).name}倾向 ${s.attrs[secondary]}（按进入阶段时的属性锁定）`,ids:pool.slice(0,index<=4?6:index===5?4:1).map(x=>x.id)};
+    return {group,key:secondary,reason:`${attributes.find(a=>a.key===key).name}主线 · ${attributes.find(a=>a.key===secondary).name}倾向 ${stats[secondary]}（含特性与遗传加成，进入阶段时锁定）`,ids:pool.slice(0,index<=4?6:index===5?4:1).map(x=>x.id)};
   }
   function route(s){
     const key=s.lineage.root??dominant(s),path=paths[key];
     return {key,name:path.name,groups:[0,...path.groups,15,16],locked:!!s.lineage.root,
-      note:s.lineage.root?'主线已锁定；加点与事件仍会影响尚未进入阶段的具体形态和最终结局。':'首次分化将在第12步后锁定。最高属性决定主线；同分按体魄、灵巧、适应、感知、智慧、繁衍顺序。',
+      note:s.lineage.root?'主线已锁定；加点与事件仍会影响尚未进入阶段的具体形态和最终结局。':'首次分化将在第12步后锁定。合计属性（含特性与遗传）最高值决定主线；同分按体魄、灵巧、适应、感知、智慧、繁衍顺序。',
       stages:s.lineage.stages,preview:s.lineage.stages.length>=7?null:stagePlan(s,s.lineage.stages.length,key),total:journeySize};
   }
   function next(s){
@@ -100,9 +129,9 @@
   const modifier = (s,key) => Math.max(.25,Math.min(2.5,1+s.buffs.reduce((v,b)=>v+b[key],0)));
   const chapterCount=s=>new Set(s.found.map(f=>byId.get(f.id).group)).size;
   const skillLevel=(s,key)=>s.skills?.[key]??0;
-  const skillCost=(s,key)=>{const skill=skills.find(x=>x.key===key);return skill?Math.ceil(skill.base*Math.pow(1.65,skillLevel(s,key))*(1-Math.min(.4,(s.attrs.intelligence??0)*.02))):Infinity;};
+  const skillCost=(s,key)=>{const skill=skills.find(x=>x.key===key);return skill?Math.ceil(skill.base*Math.pow(1.65,skillLevel(s,key))*(1-Math.min(.4,effectiveAttrs(s).intelligence*.02))):Infinity;};
   function learn(s,key){if(!skills.some(x=>x.key===key)||skillLevel(s,key)>=12||s.energy<skillCost(s,key))return false;s.energy-=skillCost(s,key);s.skills??=defaultSkills();s.skills[key]++;return true;}
-  function skillEffect(s,key){
+  function skillEffect(s,key,stats=effectiveAttrs(s)){
     const lv=skillLevel(s,key);
     switch(key){
       case 'metabolism':return lv*.2;
@@ -111,15 +140,15 @@
       case 'respiration':return lv*.12;
       case 'recycling':return count(s)*lv*.12;
       case 'storage':return lv*.08;
-      case 'hunting':return lv*(2+s.attrs.perception*.2);
-      case 'cooperation':return lv*(.06+s.attrs.intelligence*.005);
-      case 'resilience':return lv*(.05+s.attrs.adaptation*.005);
+      case 'hunting':return lv*(2+stats.perception*.2);
+      case 'cooperation':return lv*(.06+stats.intelligence*.005);
+      case 'resilience':return lv*(.05+stats.adaptation*.005);
       default:return 0;
     }
   }
   const flatSkills=['foraging','recycling','hunting'];
-  const rate = s => ((1+(count(s)-1)*1.8)*(1+s.level*.18)+count(s)*s.attrs.fertility*.05+flatSkills.reduce((v,k)=>v+skillEffect(s,k),0))*(1+s.attrs.power*.03+s.attrs.adaptation*.01+s.attrs.perception*.015)*skills.filter(x=>!flatSkills.includes(x.key)).reduce((v,x)=>v*(1+skillEffect(s,x.key)),1)*modifier(s,'energy');
-  const evolutionRate = s => (s.speed??1)*(1+s.attrs.agility*.015+s.attrs.adaptation*.01)*modifier(s,'evolution');
+  const rate = s => {const a=effectiveAttrs(s);return ((1+(count(s)-1)*1.8)*(1+s.level*.18)+count(s)*a.fertility*.05+flatSkills.reduce((v,k)=>v+skillEffect(s,k,a),0))*(1+a.power*.03+a.adaptation*.01+a.perception*.015)*skills.filter(x=>!flatSkills.includes(x.key)).reduce((v,x)=>v*(1+skillEffect(s,x.key,a)),1)*modifier(s,'energy');};
+  const evolutionRate = s => {const a=effectiveAttrs(s);return (s.speed??1)*(1+a.agility*.015+a.adaptation*.01)*modifier(s,'evolution');};
   function setSpeed(s,speed){if(!speeds.includes(speed))return false;s.speed=speed;return true;}
   const cost = s => Math.round(25*Math.pow(1.55,s.level));
   const journeyAt=n=>n===0?0:n===1?45:n===2?120:120+(n-2)*600;
@@ -164,10 +193,18 @@
     if(!basic(s))return false;
     if(s.version===1)return true;
     if(s.speed!==undefined&&!speeds.includes(s.speed))return false;
-    if(![2,3].includes(s.version)||!s.attrs||!attributes.every((a,i)=>(i>=3&&s.attrs[a.key]===undefined)||(Number.isInteger(s.attrs[a.key])&&s.attrs[a.key]>=0&&s.attrs[a.key]<=1e6))||!Number.isInteger(s.points)||s.points<0||s.points>1e6||!Number.isFinite(s.evolution)||s.evolution<0||s.evolution>1e12)return false;
+    if(![2,3,4].includes(s.version)||!s.attrs||!attributes.every((a,i)=>(i>=3&&s.attrs[a.key]===undefined)||(Number.isInteger(s.attrs[a.key])&&s.attrs[a.key]>=0&&s.attrs[a.key]<=1e6))||!Number.isInteger(s.points)||s.points<0||s.points>1e6||!Number.isFinite(s.evolution)||s.evolution<0||s.evolution>1e12)return false;
     if(s.skills!==undefined&&(!s.skills||!skills.every(x=>(s.version===2&&s.skills[x.key]===undefined)||(Number.isInteger(s.skills[x.key])&&s.skills[x.key]>=0&&s.skills[x.key]<=12))))return false;
     if(!Array.isArray(s.found)||s.found.length<1||s.found.length>species.length||!s.found.every(x=>x&&byId.has(x.id)&&Number.isInteger(x.age)&&x.age>=0&&x.age<=s.age)||s.found[0].id!=='cell'||new Set(s.found.map(x=>x.id)).size!==s.found.length)return false;
-    if(s.version===3){
+    if(s.version===4&&(!s.traits||!s.heritage))return false;
+    if(s.traits!==undefined&&(!s.traits||!traits.every(t=>Number.isInteger(s.traits[t.key])&&s.traits[t.key]>=0&&s.traits[t.key]<=12)))return false;
+    if(s.heritage!==undefined){
+      const h=s.heritage,int=n=>Number.isInteger(n)&&n>=0&&n<=1e6;
+      if(!h||!['points','pending','converted','generation'].every(k=>int(h[k]))||!h.genes||!attributes.every(a=>int(h.genes[a.key])))return false;
+      const spent=attributes.reduce((v,a)=>v+h.genes[a.key]*(h.genes[a.key]+1)/2,0);
+      if(h.points+h.pending+spent!==h.converted)return false;
+    }
+    if(s.version>=3){
       const l=s.lineage;
       if(!l||!Number.isFinite(l.origin)||l.origin<0||l.origin>s.evolution||!Number.isInteger(l.progress)||l.progress<1||l.progress>journeySize||!(l.root===null||Object.hasOwn(paths,l.root))||!Array.isArray(l.stages)||l.stages.length<1||l.stages.length>7)return false;
       if(!Number.isInteger(s.historyIndex)||s.historyIndex<0||s.historyIndex>history.length)return false;
@@ -194,18 +231,19 @@
   }
   function migrate(s){
     if(!valid(s))throw Error('invalid save');
-    if(s.version===2||s.version===3){
+    if(s.version===2||s.version===3||s.version===4){
       const copy={...JSON.parse(JSON.stringify(s)),speed:s.speed??1};
       copy.attrs={...defaultAttrs(),...copy.attrs};copy.skills={...defaultSkills(),...copy.skills};
       if(copy.randomState===undefined){copy.randomState=(copy.savedAt>>>0)||1;if(copy.pending){copy.pending={index:copy.pending.index};copy.nextEvent=null;}else scheduleEvent(copy);}
-      if(copy.version===2){copy.version=3;copy.lineage=newLineage(copy.evolution);copy.historyIndex=0;}
+      if(copy.version===2){copy.lineage=newLineage(copy.evolution);copy.historyIndex=0;}
+      copy.traits??=defaultTraits();copy.heritage??=defaultHeritage();copy.version=4;
       return copy;
     }
     const fresh=create();for(const k of ['age','fraction','energy','total','level','paused','savedAt'])fresh[k]=s[k];
     fresh.evolution=s.age;scheduleEvent(fresh);
     fresh.found=species.filter(x=>x.at<=s.age).map(x=>({id:x.id,age:x.at}));fresh.points=5+Math.floor(fresh.found.length/5)*2;fresh.lineage=newLineage(fresh.evolution);return fresh;
   }
-  const api={species,chapters,realCount,realProgress,progress,journeySize,journeyAt,fantasyReady,history,skillEffect,flatSkills,attributes,skills,skillLevel,skillCost,learn,chapterCount,events,speeds,setSpeed,create,count,has,latest,next,affinity,route,modifier,rate,evolutionRate,cost,threshold,allocate,choose,choicePreview,advance,valid,migrate};
+  const api={species,chapters,realCount,realProgress,progress,journeySize,journeyAt,fantasyReady,history,skillEffect,flatSkills,attributes,skills,traits,effectiveAttrs,traitCost,developTrait,heritageCost,exchangeHeritage,geneCost,developGene,restart,skillLevel,skillCost,learn,chapterCount,events,speeds,setSpeed,create,count,has,latest,next,affinity,route,modifier,rate,evolutionRate,cost,threshold,allocate,choose,choicePreview,advance,valid,migrate};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Life = api;
 })(typeof window === 'undefined' ? globalThis : window);
