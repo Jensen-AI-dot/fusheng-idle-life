@@ -4,7 +4,7 @@
     "name": "原初细胞",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 0,
     "column": 0
   },
@@ -13,7 +13,7 @@
     "name": "古菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 0,
     "column": 1
   },
@@ -22,7 +22,7 @@
     "name": "产甲烷菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 0,
     "column": 2
   },
@@ -31,7 +31,7 @@
     "name": "嗜盐古菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 0,
     "column": 3
   },
@@ -40,7 +40,7 @@
     "name": "蓝细菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 0,
     "column": 4
   },
@@ -49,7 +49,7 @@
     "name": "球菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 1,
     "column": 0
   },
@@ -58,7 +58,7 @@
     "name": "杆菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 1,
     "column": 1
   },
@@ -67,7 +67,7 @@
     "name": "螺旋菌",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 1,
     "column": 2
   },
@@ -76,7 +76,7 @@
     "name": "聚球藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 1,
     "column": 3
   },
@@ -85,7 +85,7 @@
     "name": "原绿球藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 1,
     "column": 4
   },
@@ -94,7 +94,7 @@
     "name": "衣藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 2,
     "column": 0
   },
@@ -103,7 +103,7 @@
     "name": "小球藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 2,
     "column": 1
   },
@@ -112,7 +112,7 @@
     "name": "团藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 2,
     "column": 2
   },
@@ -121,7 +121,7 @@
     "name": "硅藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 2,
     "column": 3
   },
@@ -130,7 +130,7 @@
     "name": "鼓藻",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 2,
     "column": 4
   },
@@ -139,7 +139,7 @@
     "name": "眼虫",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 3,
     "column": 0
   },
@@ -148,7 +148,7 @@
     "name": "变形虫",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 3,
     "column": 1
   },
@@ -157,7 +157,7 @@
     "name": "草履虫",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 3,
     "column": 2
   },
@@ -166,7 +166,7 @@
     "name": "钟虫",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 3,
     "column": 3
   },
@@ -175,7 +175,7 @@
     "name": "喇叭虫",
     "fantasy": false,
     "chapter": "微观宇宙",
-    "atlas": "assets/life-01.png",
+    "atlas": "assets/life-01-fit.png",
     "row": 3,
     "column": 4
   },
@@ -2884,7 +2884,7 @@
     "name": "星环游鲸",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 0,
     "column": 0
   },
@@ -2893,7 +2893,7 @@
     "name": "引力水母",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 0,
     "column": 1
   },
@@ -2902,7 +2902,7 @@
     "name": "彗尾银狐",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 0,
     "column": 2
   },
@@ -2911,7 +2911,7 @@
     "name": "折光镜螳",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 0,
     "column": 3
   },
@@ -2920,7 +2920,7 @@
     "name": "时砂甲虫",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 0,
     "column": 4
   },
@@ -2929,7 +2929,7 @@
     "name": "极光羽龙",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 1,
     "column": 0
   },
@@ -2938,7 +2938,7 @@
     "name": "日冕狮鹫",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 1,
     "column": 1
   },
@@ -2947,7 +2947,7 @@
     "name": "弦月夜鸮",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 1,
     "column": 2
   },
@@ -2956,7 +2956,7 @@
     "name": "星穹鹿",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 1,
     "column": 3
   },
@@ -2965,7 +2965,7 @@
     "name": "晶核玄龟",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 1,
     "column": 4
   },
@@ -2974,7 +2974,7 @@
     "name": "虚空鳐",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 2,
     "column": 0
   },
@@ -2983,7 +2983,7 @@
     "name": "涟漪海蛇",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 2,
     "column": 1
   },
@@ -2992,7 +2992,7 @@
     "name": "雷云巨隼",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 2,
     "column": 2
   },
@@ -3001,7 +3001,7 @@
     "name": "光谱灵蝶",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 2,
     "column": 3
   },
@@ -3010,7 +3010,7 @@
     "name": "梦孢浮灵",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 2,
     "column": 4
   },
@@ -3019,7 +3019,7 @@
     "name": "银藤古树",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 3,
     "column": 0
   },
@@ -3028,7 +3028,7 @@
     "name": "行星背兽",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 3,
     "column": 1
   },
@@ -3037,7 +3037,7 @@
     "name": "潮汐鲲鲸",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 3,
     "column": 2
   },
@@ -3046,7 +3046,7 @@
     "name": "环日衔蛇",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 3,
     "column": 3
   },
@@ -3055,7 +3055,7 @@
     "name": "万象始祖",
     "fantasy": true,
     "chapter": "星界超越",
-    "atlas": "assets/life-17.png",
+    "atlas": "assets/life-17-fit.png",
     "row": 3,
     "column": 4
   }

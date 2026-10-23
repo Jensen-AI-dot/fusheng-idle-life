@@ -2,7 +2,8 @@
 const $ = id => document.getElementById(id);
 const L = window.Life;
 const Art = window.LifeArt;
-window.addEventListener('life-art-ready',e=>document.querySelectorAll(`[data-art-group="${e.detail}"]`).forEach(el=>el.classList.add('ready')));
+function paintArtwork(){document.querySelectorAll('.species-art').forEach(el=>{if(Art.paint(el.querySelector('canvas'),Number(el.dataset.artGroup),Number(el.dataset.artVariant)))el.classList.add('ready');});}
+window.addEventListener('life-art-ready',paintArtwork);
 const KEY = 'fusheng-life-v4';
 let state = L.create(), selected = 'cell', filter = 'all', chapter = 'all', slow = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let toastTimer, saveWarning = false, sessionSeconds = 0, eventKey = '', lastProgress = 1;
@@ -29,7 +30,7 @@ function restore() {
     selected = L.latest(state).id;
   } catch { toast('原存档无法读取，已开始新的生命旅程。'); }
 }
-function icon(s, locked = false) {
+function icon(s, locked = false, large = false) {
   if (locked) return '<span aria-hidden="true">♧</span>';
   const shapes = {
     cell: '<circle cx="20" cy="20" r="13" fill="currentColor" opacity=".16"/><circle cx="20" cy="20" r="12" fill="none" stroke="currentColor"/><circle cx="22" cy="19" r="4" fill="currentColor"/><circle cx="15" cy="24" r="2" fill="currentColor" opacity=".6"/>',
@@ -46,19 +47,21 @@ function icon(s, locked = false) {
     mammal: '<ellipse cx="18" cy="22" rx="13" ry="8" fill="currentColor" opacity=".65"/><circle cx="30" cy="17" r="7" fill="currentColor"/><path d="M27 13L26 6L32 11M12 26V35M24 26V35M6 21L1 13" stroke="currentColor" stroke-width="3"/>'
   };
   const key = ['cell','algae','jelly','trilobite','fish','amphibian','reptile','bird','plant','insect','dinosaur','mammal'][s.type];
-  const ready=Art.image(s.group),x=(s.variant%5)*25,y=Math.floor(s.variant/5)*100/3;
-  return `<span class="species-art ${ready?'ready':''}" data-art-group="${s.group}" style="--art-url:url('${Art.url(s.group)}');--art-x:${x}%;--art-y:${y}%"><svg viewBox="0 0 40 40" aria-hidden="true" style="color:${s.color}">${shapes[key]}</svg></span>`;
+  Art.image(s.group);
+  return `<span class="species-art" data-art-group="${s.group}" data-art-variant="${s.variant}"><canvas width="${large?340:96}" height="${large?340:96}" aria-hidden="true"></canvas><svg viewBox="0 0 40 40" aria-hidden="true" style="color:${s.color}">${shapes[key]}</svg></span>`;
 }
 function renderList() {
   $('species-list').innerHTML = L.species.filter(s => (filter === 'all' || L.has(state,s.id)) && (chapter === 'all' || s.group === Number(chapter))).map(s => {
     const unlocked = L.has(state,s.id);
     return `<button class="species-card ${unlocked ? '' : 'locked'} ${selected === s.id ? 'selected' : ''}" data-id="${s.id}" aria-label="${s.name}${unlocked ? '，查看图鉴' : '，尚未发现'}" aria-pressed="${selected === s.id}"><span class="species-icon">${icon(s, !unlocked)}</span><span class="species-text"><b>${s.name}</b><small>${String(L.species.indexOf(s)+1).padStart(3,'0')} · ${unlocked ? s.era : '尚未相遇'}</small></span><span class="species-end">${unlocked ? '↗' : '·'}</span></button>`;
   }).join('');
+  paintArtwork();
 }
 function showDetail(id) {
   const s = L.species.find(x => x.id === id); selected = id; renderList();
   const open = L.has(state,s.id), trait = L.affinity(s), gated=s.fantasy&&!L.fantasyReady(state);
-  $('dialog-content').innerHTML = `<div class="dialog-visual">${icon(s)}</div><div class="eyebrow">${s.fantasy?'ORIGINAL FANTASY · ':open?'DISCOVERED · ':''}${s.kind}</div><h2>${s.name}</h2><p style="color:${s.color}">${s.note}</p><p>${gated?'走完本轮真实阶段，即进入所属主线的幻想演化，无需集齐其他路线。'+s.detail:open?s.detail:s.detail+' 本轮只发展一条路线；它可能属于其他分支。加点与事件决定尚未锁定的阶段，不能改写已锁定分支。'}</p><p class="trait-label">${s.fantasy?'原创幻想 · ':''}演化倾向：${trait.name} · ${s.kind}</p><div class="eyebrow">${s.latin.toUpperCase()}</div>`;
+  $('dialog-content').innerHTML = `<div class="dialog-visual">${icon(s,false,true)}</div><div class="eyebrow">${s.fantasy?'ORIGINAL FANTASY · ':open?'DISCOVERED · ':''}${s.kind}</div><h2>${s.name}</h2><p style="color:${s.color}">${s.note}</p><p>${gated?'走完本轮真实阶段，即进入所属主线的幻想演化，无需集齐其他路线。'+s.detail:open?s.detail:s.detail+' 本轮只发展一条路线；它可能属于其他分支。加点与事件决定尚未锁定的阶段，不能改写已锁定分支。'}</p><p class="trait-label">${s.fantasy?'原创幻想 · ':''}演化倾向：${trait.name} · ${s.kind}</p><div class="eyebrow">${s.latin.toUpperCase()}</div>`;
+  paintArtwork();
   $('detail').showModal();
 }
 function render() {
@@ -357,8 +360,8 @@ function frame(now) {
     if(artwork){
       const r=Art.cell(life,artwork),dh=size*r.h/r.w;
       if(kind<3){const pulse=1+Math.sin(t*1.3+seed)*.025;ctx.scale(pulse,1/pulse);}
-      ctx.globalCompositeOperation=life.group===0?'screen':'source-over';
-      ctx.filter=life.group===0?'invert(1) hue-rotate(180deg)':'none';
+      ctx.globalCompositeOperation='source-over';
+      ctx.filter='none';
       ctx.drawImage(artwork,r.x,r.y,r.w,r.h,-size/2,-dh/2,size,dh);
     }else{
       ctx.scale(size/90,size/90);ctx.filter=`hue-rotate(${(life.variant%7-3)*8}deg)`;

@@ -102,3 +102,5 @@ require('./lineage.test.cjs');
 
 require('./cultivation.test.cjs');
 
+require('./art.test.cjs');
+
